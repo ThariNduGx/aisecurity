@@ -89,7 +89,7 @@ def get_unsw_features(ip_address, request_obj):
     dbytes = 0   # response size is unknown before the model runs
 
     # ── Derived packet / timing estimates ─────────────────────────────────────
-    dur     = 0.05                           # ~50 ms typical Moodle login round-trip
+    dur     = 1.0                            # ~1 second typical Moodle HTTP session duration
     spkts   = max(1, sbytes // 1460)         # source packets (TCP MTU = 1460 bytes)
     dpkts   = 1                              # at least 1 response packet
     rate    = (spkts + dpkts) / dur          # total packets per second
