@@ -12,27 +12,24 @@ Output:
 """
 
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, accuracy_score
 import joblib
 
-# ── 39 feature columns (UNSW-NB15 order, after dropping non-feature columns) ─
-FEATURE_COLS = [
-    'proto', 'state', 'dur', 'sbytes', 'dbytes', 'sttl', 'dttl',
-    'sloss', 'dloss', 'service', 'Sload', 'Dload', 'Spkts', 'Dpkts',
-    'swin', 'dwin', 'smeansz', 'dmeansz', 'trans_depth', 'res_bdy_len',
-    'Sjit', 'Djit', 'Sintpkt', 'Dintpkt', 'tcprtt', 'synack', 'ackdat',
-    'is_sm_ips_ports', 'ct_state_ttl', 'ct_flw_http_mthd', 'is_ftp_login',
-    'ct_ftp_cmd', 'ct_srv_src', 'ct_srv_dst', 'ct_dst_ltm', 'ct_src_ltm',
-    'ct_src_dport_ltm', 'ct_dst_sport_ltm', 'ct_dst_src_ltm',
+# Columns dropped before training (categorical strings + non-feature columns).
+# proto, state, service are dropped because they are categorical strings.
+# stcpb, dtcpb, Stime are dropped as they are large sequence numbers / timestamps.
+COLS_TO_DROP = [
+    'srcip', 'dstip', 'proto', 'state', 'service',
+    'stcpb', 'dtcpb', 'Stime', 'attack_cat',
 ]
 
 LABEL_COL = 'Label'
 
-# Columns that are categorical strings and must be label-encoded
-CAT_COLS = ['proto', 'service', 'state']
+# The remaining 39 columns are all numeric — no encoding is applied.
+# X_train_numeric = df.drop(COLS_TO_DROP + [LABEL_COL], axis=1).select_dtypes(include=[np.number])
 
 
 def train():
@@ -48,15 +45,16 @@ def train():
 
     print(f"[INFO] Dataset loaded: {len(df)} rows, {len(df.columns)} columns.")
 
-    # Encode categorical columns using LabelEncoder (alphabetical ordering)
-    for col in CAT_COLS:
-        if col in df.columns:
-            le = LabelEncoder()
-            df[col] = le.fit_transform(df[col].astype(str))
-            print(f"[INFO] Encoded '{col}' – unique classes: {list(le.classes_)}")
+    # Drop categorical and non-feature columns; keep only numeric columns.
+    # No encoding is applied — proto, state, service are completely removed.
+    cols_present = [c for c in COLS_TO_DROP if c in df.columns]
+    df = df.drop(columns=cols_present)
 
-    X = df[FEATURE_COLS]
+    X = df.drop(columns=[LABEL_COL]).select_dtypes(include=[np.number])
     y = df[LABEL_COL]
+
+    print(f"[INFO] Training on {X.shape[1]} numeric features (X_train_numeric).")
+    print(f"[INFO] Feature columns: {list(X.columns)}")
 
     print(f"[INFO] Feature shape: {X.shape}  |  Label distribution:\n{y.value_counts()}")
 
