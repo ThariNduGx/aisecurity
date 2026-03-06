@@ -91,8 +91,11 @@ def predict():
 
         if model:
             prediction = int(model.predict(features)[0])
+            # predict_proba returns [[prob_class0, prob_class1]]
+            confidence = float(model.predict_proba(features)[0][prediction])
         else:
             prediction = 0
+            confidence = 0.0
 
         status = 'safe' if prediction == 0 else 'attack'
 
@@ -100,7 +103,7 @@ def predict():
         response_data = {
             'prediction': prediction,
             'status': status,
-            'confidence': 0.95
+            'confidence': round(confidence, 4)
         }
 
         # 4. Cache the result in Redis for future requests from this IP
