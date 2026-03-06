@@ -8,7 +8,7 @@ Dataset:
       python train_model.py
 
 Output:
-  moodle_ai_security_model.pkl  – the 39-feature model loaded by app.py
+  moodle_app_security_model.pkl  – the 39-feature model loaded by app.py
 """
 
 import pandas as pd
@@ -72,8 +72,8 @@ def train():
     print("Classification Report:")
     print(classification_report(y_test, y_pred))
 
-    joblib.dump(model, 'moodle_ai_security_model.pkl')
-    print("[SUCCESS] Model saved as moodle_ai_security_model.pkl")
+    joblib.dump(model, 'moodle_app_security_model.pkl')
+    print("[SUCCESS] Model saved as moodle_app_security_model.pkl")
 
 
 if __name__ == '__main__':
