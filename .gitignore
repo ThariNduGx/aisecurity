@@ -1,0 +1,13 @@
+# Virtual environment
+ai_backend/venv/
+venv/
+env/
+.env
+
+# MacOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
