@@ -34,19 +34,24 @@ function local_aisecurity_check_ip($userid, $ip) {
         'Content-Length: ' . strlen($payload)
     ]);
     // Timeout 2 seconds
-    curl_setopt($ch, CURLOPT_TIMEOUT, 2); 
+    curl_setopt($ch, CURLOPT_TIMEOUT, 2);
 
     $response = curl_exec($ch);
     $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    
+
     if (curl_errno($ch)) {
-        // Log error and fail open
+        // Log error and fail open (don't block legitimate users if backend is down)
         debugging('AI Security Plugin: cURL Error: ' . curl_error($ch), DEBUG_DEVELOPER);
         curl_close($ch);
-        return null; 
+        return null;
     }
-    
+
     curl_close($ch);
+
+    // 429 means the backend rate-limiter flagged this IP as high-velocity — treat as attack
+    if ($httpcode === 429) {
+        return ['prediction' => 1, 'status' => 'attack', 'confidence' => 1.0, 'reason' => 'rate_limit_exceeded'];
+    }
 
     if ($httpcode !== 200) {
         debugging("AI Security Plugin: API returned HTTP $httpcode.", DEBUG_DEVELOPER);
