@@ -27,5 +27,18 @@ if ($hassiteconfig) {
         PARAM_URL
     ));
 
+    // Sensitivity Select
+    $settings->add(new admin_setting_configselect(
+        'local_aisecurity/sensitivity',
+        get_string('sensitivity', 'local_aisecurity'),
+        get_string('sensitivity_desc', 'local_aisecurity'),
+        '2',
+        [
+            '1' => get_string('sensitivity_low', 'local_aisecurity'),
+            '2' => get_string('sensitivity_medium', 'local_aisecurity'),
+            '3' => get_string('sensitivity_high', 'local_aisecurity'),
+        ]
+    ));
+
     $ADMIN->add('localplugins', $settings);
 }

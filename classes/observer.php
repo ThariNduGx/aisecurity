@@ -24,13 +24,22 @@ class observer {
         require_once($CFG->dirroot . '/local/aisecurity/lib.php');
         $response = local_aisecurity_check_ip($userid, $ip);
 
-        // 4. Analyze & Enforce
-        if ((isset($response['status']) && $response['status'] === 'attack') || 
-            (isset($response['prediction']) && $response['prediction'] == 1)) {
-            
-            // LOGGING
-            // $logmessage = "Security Alert: Malicious activity detected for User $userid from IP $ip.";
-            // mtrace($logmessage); // Commented out to prevent visual output
+        // 4. Read sensitivity setting and calculate threshold
+        $sensitivity = (int) get_config('local_aisecurity', 'sensitivity');
+        $thresholds  = [1 => 0.90, 2 => 0.70, 3 => 0.50];
+        $threshold   = $thresholds[$sensitivity] ?? 0.70;
+
+        $is_attack  = isset($response['prediction']) && $response['prediction'] == 1;
+        $confidence = isset($response['confidence']) ? (float) $response['confidence'] : 1.0;
+
+        // 5. Analyze & Enforce
+        if ($is_attack && $confidence >= $threshold) {
+
+            // LOGGING — write to PHP error log (visible in XAMPP's php_error_log)
+            $reason  = $response['reason'] ?? 'ml_model_detection';
+            $logline = date('Y-m-d H:i:s') . " [AI-SECURITY] BLOCKED userid=$userid ip=$ip "
+                     . "confidence=$confidence threshold=$threshold reason=$reason";
+            error_log($logline);
 
             // CUSTOM DARK MODE "CYBER" SECURITY PAGE
             $html = '
