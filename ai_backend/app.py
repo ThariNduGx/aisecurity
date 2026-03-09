@@ -48,17 +48,25 @@ def predict():
             print(f"[INFO] Serving cached prediction for IP: {ip_address}, user: {user_id}")
             return jsonify(cached_result)
 
-        # 3. Create dummy feature array based on model expected features
+        # 3. Create baseline feature array (Normal Moodle Traffic)
         feature_count = model.n_features_in_ if model else 39
         features = np.zeros(feature_count)
+        features[0] = 1.0    # dur
+        features[1] = 10     # spkts
+        features[2] = 10     # dpkts
+        features[3] = 800    # sbytes
+        features[4] = 1200   # dbytes
+        features[5] = 20.0   # rate
 
         # Artificial trigger for testing:
-        # Even userid (e.g. admin=2) → sets dur=999999 → model sees anomaly
-        # Odd userid  (e.g. student=1) → dur=0 → model sees normal traffic
+        # Even userid (Admin) → Spike to severe DoS/Scanning attack signature
+        # Odd userid  (Student) → normal baseline traffic
         if int(user_id) % 2 == 0:
-            features[0] = 999999
-        else:
-            features[0] = 0
+            features[0] = 0.0001    # Extremely short duration
+            features[1] = 500       # Massive source packets
+            features[2] = 0         # Zero destination packets responding
+            features[3] = 10000     # High source bytes
+            features[5] = 999999.0  # Insane packet rate
 
         features = features.reshape(1, -1)
 
