@@ -40,7 +40,7 @@ def predict():
         if limiter.is_rate_limited(ip_address):
             print(f"[SECURITY] Blocking rate-limited IP: {ip_address}")
             return jsonify({
-                'prediction' : 'DoS',
+                'prediction' : 'RateLimit',
                 'status'     : 'attack',
                 'confidence' : 1.0,
                 'reason'     : 'rate_limit_exceeded',
