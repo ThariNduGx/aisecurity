@@ -8,7 +8,7 @@ app = Flask(__name__)
 # Initialize the rate limiter (connects to local Redis on default port 6379)
 limiter = RateLimiter(host='localhost', port=6379, db=0)
 
-# Load the trained multi-class AI model
+# Load the trained multi-class model (Decision Tree, tuned max_depth)
 try:
     model = joblib.load('moodle_ai_security_model.pkl')
     print("[INFO] AI model loaded successfully.")
@@ -16,13 +16,14 @@ except Exception as e:
     print(f"[ERROR] Could not load model: {e}")
     model = None
 
-# Load the label encoder so integer predictions map back to attack_cat strings
+# Load the StandardScaler fitted during training.
+# Live features MUST be scaled with the same scaler before prediction.
 try:
-    label_encoder = joblib.load('label_encoder.pkl')
-    print(f"[INFO] Label encoder loaded. Classes: {list(label_encoder.classes_)}")
+    scaler = joblib.load('scaler.pkl')
+    print("[INFO] Scaler loaded successfully.")
 except Exception as e:
-    print(f"[WARNING] Label encoder not found: {e}  (binary fallback active)")
-    label_encoder = None
+    print(f"[WARNING] scaler.pkl not found: {e}  (features will not be scaled)")
+    scaler = None
 
 
 @app.route('/predict', methods=['POST'])
@@ -39,64 +40,57 @@ def predict():
         if limiter.is_rate_limited(ip_address):
             print(f"[SECURITY] Blocking rate-limited IP: {ip_address}")
             return jsonify({
-                'prediction' : 1,
-                'attack_cat' : 'DoS',
+                'prediction' : 'DoS',
                 'status'     : 'attack',
                 'confidence' : 1.0,
-                'reason'     : 'rate_limit_exceeded'
+                'reason'     : 'rate_limit_exceeded',
             }), 429
 
-        # 2. Redis Caching (keyed by IP + userid for per-user isolation)
-        cache_key_id  = f"{ip_address}:{user_id}"
-        cached_result = limiter.get_cached_prediction(cache_key_id)
+        # 2. Redis Cache (keyed by IP + userid for per-user isolation)
+        cache_key     = f"{ip_address}:{user_id}"
+        cached_result = limiter.get_cached_prediction(cache_key)
         if cached_result:
-            print(f"[INFO] Cache hit for {cache_key_id}")
+            print(f"[INFO] Cache hit for {cache_key}")
             return jsonify(cached_result)
 
         # 3. Build feature vector from the request payload.
-        #    The simulation tool (simulate_attack.py) sends a 'features' array
-        #    containing the 39 numeric UNSW-NB15 columns in the correct order.
-        #    The Moodle PHP plugin sends whatever network metadata it can collect.
+        #    simulate_attack.py sends a 'features' array with all numeric
+        #    UNSW-NB15 columns in order.  The Moodle PHP plugin sends
+        #    userid/ip only; those requests fall back to the zero vector
+        #    (safe baseline) until full telemetry is wired up.
         feature_count = model.n_features_in_ if model else 39
 
         raw_features = data.get('features')
         if raw_features and len(raw_features) == feature_count:
-            # Real network features supplied by the caller
             features = np.array(raw_features, dtype=float)
         else:
-            # Fallback: zero vector (treated as normal baseline traffic).
-            # This path is hit when Moodle sends only userid/ip without
-            # full network telemetry. No artificial attack triggering here.
             features = np.zeros(feature_count)
 
         features = features.reshape(1, -1)
 
-        # 4. Run inference
-        if model:
-            prediction = int(model.predict(features)[0])
-        else:
-            prediction = 0
+        # 4. Scale with the same StandardScaler used during training
+        if scaler is not None:
+            features = scaler.transform(features)
 
-        # 5. Decode integer prediction → attack category string
-        if label_encoder:
-            attack_cat = label_encoder.inverse_transform([prediction])[0]
+        # 5. Predict – model returns attack_cat string directly (e.g. "DoS")
+        if model:
+            attack_cat = str(model.predict(features)[0])
         else:
-            attack_cat = 'Unknown'
+            attack_cat = 'Normal'
 
         status = 'safe' if attack_cat == 'Normal' else 'attack'
 
         print(f"[INFO] ip={ip_address} user={user_id} "
-              f"prediction={prediction} attack_cat={attack_cat} status={status}")
+              f"attack_cat={attack_cat} status={status}")
 
         response_data = {
-            'prediction' : prediction,
-            'attack_cat' : attack_cat,
+            'prediction' : attack_cat,
             'status'     : status,
             'confidence' : 0.95,
         }
 
-        # 6. Cache for future identical requests
-        limiter.cache_prediction(cache_key_id, response_data)
+        # 6. Cache the result for future identical requests
+        limiter.cache_prediction(cache_key, response_data)
 
         return jsonify(response_data)
 
